@@ -6,11 +6,13 @@ import { Loader } from 'lucide-react';
 export default function PaymentChecker() {
     const [status, setStatus] = useState('initializing');
     const [error, setError] = useState(null);
-    const WRITE_URL = 'https://script.google.com/macros/s/AKfycbxrLoiZmW7Qcd6qu0Vpbr7cpXkiB3y8f-NcOSnkXaRSfYOQyOdJwsr1kj14xvOBY_iK/exec';
+    const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
+    const WRITE_URL = 'https://script.google.com/macros/s/AKfycbxefFX5pyR3DHTIKAdIPGhVxhupMewIlA5RXBbmf_C0CG_IYnSKuJeQ64N3bKMywPAI/exec';
 
     useEffect(() => {
         const init = async () => {
             try {
+                // Get transaction ID from URL immediately when page loads
                 const urlParams = new URLSearchParams(window.location.search);
                 const txId = urlParams.get('transactionId');
                 
@@ -18,26 +20,56 @@ export default function PaymentChecker() {
                     throw new Error('No transaction ID provided');
                 }
 
-                console.log('Writing pending record for transaction:', txId);
+                console.log('Status Checker - Writing pending record for transaction:', txId);
                 
-                const postData = {
-                    transactionId: txId,
-                    status: 'pending'
-                };
-
-                // Make the POST request
-                await fetch(WRITE_URL, {
+                // First thing: Write the pending record
+                const writeResponse = await fetch(WRITE_URL, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(postData)
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        transactionId: txId,
+                        status: 'pending'
+                    })
                 });
+                
+                console.log('Write response received:', writeResponse);
 
-                console.log('Successfully wrote pending record');
+                // After writing pending record, start checking for actual transaction
                 setStatus('checking');
                 
-                // Start the normal checking process...
+                const checkTransaction = async () => {
+                    try {
+                        console.log('Checking transaction:', txId);
+                        const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
+                        const text = await response.text();
+                        console.log('Response from sheets:', text);
+                        
+                        const data = JSON.parse(text);
+                        
+                        if (data.found === true) {
+                            console.log('Transaction found! Notifying parent window...');
+                            setStatus('success');
+                            
+                            if (window.opener) {
+                                window.opener.postMessage({
+                                    type: 'update-text',
+                                    text: 'Payment successful!'
+                                }, '*');
+                                
+                                setTimeout(() => window.close(), 2000);
+                            }
+                        } else {
+                            console.log('Transaction not found, retrying in 3s...');
+                            setTimeout(checkTransaction, 3000);
+                        }
+                    } catch (error) {
+                        console.error('Error checking transaction:', error);
+                        setTimeout(checkTransaction, 3000);
+                    }
+                };
+
+                // Start checking
+                checkTransaction();
                 
             } catch (err) {
                 console.error('Error in initialization:', err);
@@ -46,6 +78,7 @@ export default function PaymentChecker() {
             }
         };
 
+        // Start the initialization immediately
         init();
     }, []);
 
@@ -62,7 +95,7 @@ export default function PaymentChecker() {
                             <Loader className="w-12 h-12 text-blue-500 animate-spin" />
                         </div>
                         <p className="text-gray-600 font-medium">
-                            Initializing...
+                            Initializing verification...
                         </p>
                     </div>
                 )}
@@ -77,6 +110,14 @@ export default function PaymentChecker() {
                         </p>
                         <p className="text-sm text-gray-500 mt-2">
                             Please keep this window open
+                        </p>
+                    </div>
+                )}
+
+                {status === 'success' && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <p className="text-green-800 text-center">
+                            Payment successful! Window closing...
                         </p>
                     </div>
                 )}
