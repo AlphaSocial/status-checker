@@ -6,13 +6,13 @@ import { Loader } from 'lucide-react';
 export default function PaymentChecker() {
     const [status, setStatus] = useState('checking');
     const [error, setError] = useState(null);
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
+    const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
+    const WRITE_URL = 'https://script.google.com/macros/s/AKfycbxQ0d0oY0PifhhlAUcWcWEdQnF_mIaXwSpBEqSo0KeWdbEOVmlJfaTBw0QK6Vht2sEt/exec';
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const txId = urlParams.get('transactionId');
         
-        // Log the transaction ID we're checking
         console.log('Status Checker - Transaction ID:', txId);
         
         if (!txId) {
@@ -22,10 +22,30 @@ export default function PaymentChecker() {
             return;
         }
 
+        // Create pending record
+        const createPendingRecord = async () => {
+            try {
+                console.log('Creating pending record for:', txId);
+                await fetch(WRITE_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        transactionId: txId,
+                        status: 'pending',
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                console.log('Pending record created');
+            } catch (error) {
+                console.error('Error creating pending record:', error);
+            }
+        };
+
         const checkTransaction = async () => {
             try {
                 console.log('Checking transaction:', txId);
-                const response = await fetch(`${SCRIPT_URL}?transactionId=${txId}`);
+                const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
                 const text = await response.text();
                 console.log('Response from sheets:', text);
                 
@@ -36,14 +56,12 @@ export default function PaymentChecker() {
                     console.log('Transaction found! Notifying parent window...');
                     setStatus('success');
                     
-                    // Try to notify parent window
                     if (window.opener) {
                         window.opener.postMessage({
                             type: 'update-text',
                             text: 'Payment successful!'
                         }, '*');
                         
-                        // Store success in localStorage for mobile
                         try {
                             localStorage.setItem('paymentStatus', 'success');
                             localStorage.setItem('lastSuccessfulTx', txId);
@@ -65,9 +83,11 @@ export default function PaymentChecker() {
             }
         };
 
-        checkTransaction();
+        // Start by creating pending record, then begin checking
+        createPendingRecord().then(() => {
+            checkTransaction();
+        });
 
-        // Cleanup
         return () => {
             try {
                 localStorage.removeItem('paymentStatus');
@@ -77,6 +97,7 @@ export default function PaymentChecker() {
         };
     }, []);
 
+    // Rest of your component remains the same...
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
             <div className="w-full max-w-md bg-white rounded-lg shadow-md p-8">
