@@ -6,10 +6,8 @@ import { Loader } from 'lucide-react';
 export default function PaymentChecker() {
     const [status, setStatus] = useState('checking');
     const [error, setError] = useState(null);
-    // Keep original check URL
     const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
-    // Add new write URL
-    const WRITE_URL = 'https://script.google.com/macros/s/AKfycbz4m73w-GdnpKAOZWDZxe7ySwQJ3nj_h8YzZO4pOJZMyhnEgIjdF1TF0WOG5M7356nk/exec';
+    const WRITE_URL = 'https://script.google.com/macros/s/AKfycbxrLoiZmW7Qcd6qu0Vpbr7cpXkiB3y8f-NcOSnkXaRSfYOQyOdJwsr1kj14xvOBY_iK/exec';
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -24,24 +22,34 @@ export default function PaymentChecker() {
             return;
         }
 
-        // Create pending record
+        // Create pending record immediately when component loads
         const createPendingRecord = async () => {
             try {
                 console.log('Creating pending record for:', txId);
+                const postData = {
+                    transactionId: txId,
+                    status: 'pending'
+                };
+                console.log('Sending data:', postData);
+                
                 const response = await fetch(WRITE_URL, {
                     method: 'POST',
                     mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        transactionId: txId,
-                        status: 'pending'
-                    })
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(postData)
                 });
-                console.log('Pending record created:', response);
+                console.log('Write response received:', response);
             } catch (error) {
                 console.error('Error creating pending record:', error);
+                console.error('Error details:', error.message);
             }
         };
+
+        // Call createPendingRecord immediately
+        createPendingRecord();
 
         const checkTransaction = async () => {
             try {
@@ -84,10 +92,8 @@ export default function PaymentChecker() {
             }
         };
 
-        // Start by creating pending record, then begin checking
-        createPendingRecord().then(() => {
-            checkTransaction();
-        });
+        // Start checking after a brief delay to allow pending record to be created
+        setTimeout(checkTransaction, 1000);
 
         return () => {
             try {
@@ -98,6 +104,7 @@ export default function PaymentChecker() {
         };
     }, []);
 
+    // Rest of your component remains the same...
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
             <div className="w-full max-w-md bg-white rounded-lg shadow-md p-8">
