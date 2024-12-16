@@ -6,8 +6,10 @@ import { Loader } from 'lucide-react';
 export default function PaymentChecker() {
     const [status, setStatus] = useState('checking');
     const [error, setError] = useState(null);
+    // Keep original check URL
     const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
-    const WRITE_URL = 'https://script.google.com/macros/s/AKfycbxQ0d0oY0PifhhlAUcWcWEdQnF_mIaXwSpBEqSo0KeWdbEOVmlJfaTBw0QK6Vht2sEt/exec';
+    // Add new write URL
+    const WRITE_URL = 'https://script.google.com/macros/s/AKfycbz4m73w-GdnpKAOZWDZxe7ySwQJ3nj_h8YzZO4pOJZMyhnEgIjdF1TF0WOG5M7356nk/exec';
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -26,17 +28,16 @@ export default function PaymentChecker() {
         const createPendingRecord = async () => {
             try {
                 console.log('Creating pending record for:', txId);
-                await fetch(WRITE_URL, {
+                const response = await fetch(WRITE_URL, {
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         transactionId: txId,
-                        status: 'pending',
-                        timestamp: new Date().toISOString()
+                        status: 'pending'
                     })
                 });
-                console.log('Pending record created');
+                console.log('Pending record created:', response);
             } catch (error) {
                 console.error('Error creating pending record:', error);
             }
@@ -97,7 +98,6 @@ export default function PaymentChecker() {
         };
     }, []);
 
-    // Rest of your component remains the same...
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
             <div className="w-full max-w-md bg-white rounded-lg shadow-md p-8">
