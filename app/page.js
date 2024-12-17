@@ -6,73 +6,68 @@ import { Loader } from 'lucide-react';
 export default function PaymentChecker() {
     const [status, setStatus] = useState('checking');
     const [error, setError] = useState(null);
-    const WRITE_URL = 'https://script.google.com/macros/s/AKfycbxQ0d0oY0PifhhlAUcWcWEdQnF_mIaXwSpBEqSo0KeWdbEOVmlJfaTBw0QK6Vht2sEt/exec';
     const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
 
     useEffect(() => {
-        const createPendingRecord = async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const txId = urlParams.get('transactionId');
+        
+        console.log('Status Checker - Transaction ID:', txId);
+        
+        if (!txId) {
+            console.error('No transaction ID provided in URL');
+            setError('No transaction ID provided');
+            setStatus('error');
+            return;
+        }
+
+        const checkTransaction = async () => {
             try {
-                const urlParams = new URLSearchParams(window.location.search);
-                const txId = urlParams.get('transactionId');
-
-                if (!txId) {
-                    throw new Error('No transaction ID provided');
-                }
-
-                console.log('Recording pending transaction:', {
-                    transactionId: txId,
-                    network: 'pending',
-                    currency: 'pending',
-                    signature: '',
-                    amount: ''
-                });
-
-                await fetch(WRITE_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        transactionId: txId,
-                        network: 'pending',
-                        currency: 'pending',
-                        signature: '',
-                        amount: ''
-                    })
-                });
-
-                console.log('Pending record created in sheets');
-                startChecking(txId);
-            } catch (error) {
-                console.error('Error creating pending record:', error);
-                setError(error.message);
-                setStatus('error');
-            }
-        };
-
-        const startChecking = async (txId) => {
-            try {
+                console.log('Checking transaction:', txId);
                 const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
-                const data = await response.json();
+                const text = await response.text();
+                console.log('Response from sheets:', text);
+                
+                const data = JSON.parse(text);
+                console.log('Parsed response:', data);
 
-                if (data.found === true) {
-                    setStatus('success');
-                    if (window.opener) {
-                        window.opener.postMessage({
-                            type: 'update-text',
-                            text: 'Payment successful!'
-                        }, '*');
-                        setTimeout(() => window.close(), 2000);
+                // Check if we found entries
+                if (data.items && data.items.length > 0) {
+                    // Look for a non-pending transaction
+                    const completedTransaction = data.items.find(item => 
+                        item.network !== 'pending' && 
+                        item.signature !== 'pending'
+                    );
+                    
+                    if (completedTransaction) {
+                        console.log('Found completed transaction:', completedTransaction);
+                        setStatus('success');
+                        
+                        if (window.opener) {
+                            window.opener.postMessage({
+                                type: 'update-text',
+                                text: 'Payment successful!'
+                            }, '*');
+                            
+                            setTimeout(() => window.close(), 2000);
+                        }
+                    } else {
+                        console.log('Only found pending transactions, continuing to check...');
+                        setTimeout(checkTransaction, 3000);
                     }
                 } else {
-                    setTimeout(() => startChecking(txId), 3000);
+                    console.log('No transactions found, retrying in 3s...');
+                    setTimeout(checkTransaction, 3000);
                 }
             } catch (error) {
                 console.error('Error checking transaction:', error);
-                setTimeout(() => startChecking(txId), 3000);
+                setTimeout(checkTransaction, 3000);
             }
         };
 
-        createPendingRecord();
+        // Start checking
+        checkTransaction();
+
     }, []);
 
     return (
