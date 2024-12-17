@@ -33,14 +33,11 @@ export default function PaymentChecker() {
         
                 // Check if we found entries
                 if (data.items && data.items.length > 0) {
-                    // Look for a confirmed transaction (non-pending)
-                    // Look for a confirmed transaction
-// Look for a confirmed transaction matching our transactionId
-const completedTransaction = data.items.find(item => 
-    item.transactionId === txId &&  // Add this check first
-    item.network !== 'pending' && 
-    item.signature !== 'pending'
-);
+                    // Look for a transaction with our ID that has NO pending values
+                    const completedTransaction = data.items.find(item => 
+                        item.transactionId === txId && // Match our transaction ID
+                        !Object.values(item).includes('pending') // Ensure NO pending values
+                    );
                     
                     if (completedTransaction) {
                         console.log('Found completed transaction:', completedTransaction);
@@ -55,7 +52,7 @@ const completedTransaction = data.items.find(item =>
                             setTimeout(() => window.close(), 2000);
                         }
                     } else {
-                        console.log('No confirmed transaction found, continuing to check...');
+                        console.log('No completed transaction found yet, continuing to check...');
                         setTimeout(checkTransaction, 3000);
                     }
                 } else {
