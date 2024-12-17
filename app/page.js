@@ -34,11 +34,12 @@ export default function PaymentChecker() {
                 // Check if we found entries
                 if (data.items && data.items.length > 0) {
                     // Look for a confirmed transaction (non-pending)
-                    const completedTransaction = data.items.find(item => 
-                        item.network !== 'pending' && 
-                        item.signature !== 'pending' &&
-                        item.status === 'confirmed'  // Add this check
-                    );
+                    // Look for a confirmed transaction
+const completedTransaction = data.items.find(item => 
+    item.network !== 'pending' && 
+    item.signature !== 'pending' &&
+    item.status === 'confirmed'  // Add this check
+);
                     
                     if (completedTransaction) {
                         console.log('Found completed transaction:', completedTransaction);
