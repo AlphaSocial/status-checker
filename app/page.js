@@ -30,13 +30,14 @@ export default function PaymentChecker() {
                 
                 const data = JSON.parse(text);
                 console.log('Parsed response:', data);
-
+        
                 // Check if we found entries
                 if (data.items && data.items.length > 0) {
-                    // Look for a non-pending transaction
+                    // Look for a confirmed transaction (non-pending)
                     const completedTransaction = data.items.find(item => 
                         item.network !== 'pending' && 
-                        item.signature !== 'pending'
+                        item.signature !== 'pending' &&
+                        item.status === 'confirmed'  // Add this check
                     );
                     
                     if (completedTransaction) {
@@ -52,7 +53,7 @@ export default function PaymentChecker() {
                             setTimeout(() => window.close(), 2000);
                         }
                     } else {
-                        console.log('Only found pending transactions, continuing to check...');
+                        console.log('No confirmed transaction found, continuing to check...');
                         setTimeout(checkTransaction, 3000);
                     }
                 } else {
