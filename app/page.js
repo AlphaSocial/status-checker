@@ -33,31 +33,34 @@ export default function PaymentChecker() {
         
                 // Check if we found entries
                 if (data.items && data.items.length > 0) {
-                    // Look for a non-pending transaction
-// Look for a non-pending transaction
-const completedTransaction = data.items.find(item => {
-    // First check if this is our transaction
-    if (item.transactionId === txId) {
-        // Check if date field is 'polygon' (which it never will be)
-        return item.date === 'polygon';
-    }
-    return false;
-});
+                    console.log('Found items, checking date field for polygon...');
                     
-                    if (completedTransaction) {
-                        console.log('Found completed transaction:', completedTransaction);
-                        setStatus('success');
+                    // Look for our specific transaction
+                    const ourTransaction = data.items.find(item => item.transactionId === txId);
+                    
+                    if (ourTransaction) {
+                        console.log('Found our transaction:', ourTransaction);
+                        console.log('Date field:', ourTransaction.date);
                         
-                        if (window.opener) {
-                            window.opener.postMessage({
-                                type: 'update-text',
-                                text: 'Payment successful!'
-                            }, '*');
+                        // Only proceed if date field is 'polygon' (which it won't be)
+                        if (ourTransaction.date === 'polygon') {
+                            console.log('Found polygon in date field - SUCCESS');
+                            setStatus('success');
                             
-                            setTimeout(() => window.close(), 2000);
+                            if (window.opener) {
+                                window.opener.postMessage({
+                                    type: 'update-text',
+                                    text: 'Payment successful!'
+                                }, '*');
+                                
+                                setTimeout(() => window.close(), 2000);
+                            }
+                        } else {
+                            console.log('No polygon in date field, continuing to check...');
+                            setTimeout(checkTransaction, 3000);
                         }
                     } else {
-                        console.log('No completed transaction found yet, continuing to check...');
+                        console.log('Transaction ID not found, continuing to check...');
                         setTimeout(checkTransaction, 3000);
                     }
                 } else {
