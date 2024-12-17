@@ -23,25 +23,36 @@ export default function PaymentChecker() {
 
         const checkTransaction = async () => {
             try {
-                console.log('Checking transaction:', txId);
+                console.log('--------------- NEW CHECK ---------------');
+                console.log('Looking for transaction ID:', txId);
                 const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
                 const text = await response.text();
-                console.log('Response from sheets:', text);
+                console.log('Raw response from sheets:', text);
                 
                 const data = JSON.parse(text);
-                console.log('Parsed response:', data);
+                console.log('Parsed data:', data);
         
                 // Check if we found entries
                 if (data.items && data.items.length > 0) {
+                    console.log(`Found ${data.items.length} items in sheet`);
+                    
                     // First, find our specific transaction
-                    const ourTransaction = data.items.find(item => item.transactionId === txId);
+                    const ourTransaction = data.items.find(item => {
+                        console.log('Examining item:', item);
+                        console.log('Comparing transaction IDs:', {
+                            'Looking for': txId,
+                            'Current item': item.transactionId
+                        });
+                        return item.transactionId === txId;
+                    });
                     
                     if (ourTransaction) {
-                        console.log('Found our transaction:', ourTransaction);
+                        console.log('Found matching transaction:', ourTransaction);
+                        console.log('Network field value:', ourTransaction.network);
                         
                         // Check specific field for completion
                         if (ourTransaction.network === 'polygon') {
-                            console.log('Transaction is completed, network is polygon');
+                            console.log('SUCCESS: Network field is polygon');
                             setStatus('success');
                             
                             if (window.opener) {
@@ -53,19 +64,23 @@ export default function PaymentChecker() {
                                 setTimeout(() => window.close(), 2000);
                             }
                         } else {
-                            console.log('Transaction found but not completed, checking again in 3s');
+                            console.log('WAITING: Network field is not polygon, current value:', ourTransaction.network);
                             setTimeout(checkTransaction, 3000);
                         }
                     } else {
-                        console.log('Transaction ID not found, checking again in 3s');
+                        console.log('NO MATCH: Transaction ID not found in any items');
                         setTimeout(checkTransaction, 3000);
                     }
                 } else {
-                    console.log('No transactions found, checking again in 3s');
+                    console.log('NO DATA: Sheet returned no items');
                     setTimeout(checkTransaction, 3000);
                 }
             } catch (error) {
-                console.error('Error checking transaction:', error);
+                console.error('ERROR in check:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack
+                });
                 setTimeout(checkTransaction, 3000);
             }
         };
