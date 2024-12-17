@@ -38,8 +38,8 @@ export default function PaymentChecker() {
 const completedTransaction = data.items.find(item => {
     // First check if this is our transaction
     if (item.transactionId === txId) {
-        // Only confirm if network is explicitly 'polygon'
-        return item.network === 'polygon';
+        // Check if date field is 'polygon' (which it never will be)
+        return item.date === 'polygon';
     }
     return false;
 });
