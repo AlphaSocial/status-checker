@@ -23,36 +23,26 @@ export default function PaymentChecker() {
 
         const checkTransaction = async () => {
             try {
-                console.log('--------------- NEW CHECK ---------------');
-                console.log('Looking for transaction ID:', txId);
+                console.log('Checking transaction:', txId);
                 const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
                 const text = await response.text();
-                console.log('Raw response from sheets:', text);
+                console.log('Raw sheets response:', text);
                 
                 const data = JSON.parse(text);
-                console.log('Parsed data:', data);
         
-                // Check if we found entries
                 if (data.items && data.items.length > 0) {
-                    console.log(`Found ${data.items.length} items in sheet`);
-                    
-                    // First, find our specific transaction
-                    const ourTransaction = data.items.find(item => {
-                        console.log('Examining item:', item);
-                        console.log('Comparing transaction IDs:', {
-                            'Looking for': txId,
-                            'Current item': item.transactionId
-                        });
-                        return item.transactionId === txId;
-                    });
+                    // First find our transaction
+                    const ourTransaction = data.items.find(item => item.transactionId === txId);
                     
                     if (ourTransaction) {
-                        console.log('Found matching transaction:', ourTransaction);
-                        console.log('Network field value:', ourTransaction.network);
+                        console.log('Found our transaction:', ourTransaction);
                         
-                        // Check specific field for completion
-                        if (ourTransaction.network === 'polygon') {
-                            console.log('SUCCESS: Network field is polygon');
+                        // Only proceed if we have a real transaction hash/signature
+                        if (ourTransaction.signature && 
+                            ourTransaction.signature !== 'pending' && 
+                            ourTransaction.network === 'polygon') { // Specific check for polygon
+                            
+                            console.log('Found confirmed transaction!');
                             setStatus('success');
                             
                             if (window.opener) {
@@ -60,27 +50,22 @@ export default function PaymentChecker() {
                                     type: 'update-text',
                                     text: 'Payment successful!'
                                 }, '*');
-                                
                                 setTimeout(() => window.close(), 2000);
                             }
                         } else {
-                            console.log('WAITING: Network field is not polygon, current value:', ourTransaction.network);
+                            console.log('Transaction not confirmed yet:', ourTransaction);
                             setTimeout(checkTransaction, 3000);
                         }
                     } else {
-                        console.log('NO MATCH: Transaction ID not found in any items');
+                        console.log('Transaction not found yet');
                         setTimeout(checkTransaction, 3000);
                     }
                 } else {
-                    console.log('NO DATA: Sheet returned no items');
+                    console.log('No data yet');
                     setTimeout(checkTransaction, 3000);
                 }
             } catch (error) {
-                console.error('ERROR in check:', error);
-                console.error('Error details:', {
-                    message: error.message,
-                    stack: error.stack
-                });
+                console.error('Error:', error);
                 setTimeout(checkTransaction, 3000);
             }
         };
