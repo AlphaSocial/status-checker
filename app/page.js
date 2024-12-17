@@ -23,37 +23,41 @@ export default function PaymentChecker() {
 
         const checkTransaction = async () => {
             try {
-                console.log('Starting check');
-                const response = await fetch(`${CHECK_URL}`);
+                console.log('Checking transaction:', txId);
+                const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
                 const text = await response.text();
                 console.log('Raw sheets response:', text);
                 
                 const data = JSON.parse(text);
         
                 if (data.items && data.items.length > 0) {
-                    // Look for BASTARDPIE in any field of any row
-                    const foundBastardPie = data.items.some(item => 
-                        Object.values(item).includes('BASTARDPIE')
-                    );
+                    // First find our specific transaction
+                    const ourTransaction = data.items.find(item => item.transactionId === txId);
                     
-                    if (foundBastardPie) {
-                        console.log('Found BASTARDPIE!');
-                        setStatus('success');
+                    if (ourTransaction) {
+                        // Check if ANY field contains 'pending'
+                        const hasPending = Object.values(ourTransaction).includes('pending');
                         
-                        if (window.opener) {
-                            window.opener.postMessage({
-                                type: 'update-text',
-                                text: 'Payment successful!'
-                            }, '*');
-                            setTimeout(() => window.close(), 2000);
+                        if (!hasPending) {
+                            console.log('Found completed transaction:', ourTransaction);
+                            setStatus('success');
+                            
+                            // Only send success message if we're in mobile
+                            if (window.opener && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                                window.opener.postMessage({
+                                    type: 'payment-success',
+                                    transactionId: txId
+                                }, '*');
+                                setTimeout(() => window.close(), 2000);
+                            }
+                        } else {
+                            console.log('Transaction still pending, checking again in 3s');
+                            setTimeout(checkTransaction, 3000);
                         }
                     } else {
-                        console.log('No BASTARDPIE found yet, checking again in 3s');
+                        console.log('Transaction not found, checking again in 3s');
                         setTimeout(checkTransaction, 3000);
                     }
-                } else {
-                    console.log('No data yet');
-                    setTimeout(checkTransaction, 3000);
                 }
             } catch (error) {
                 console.error('Error:', error);
