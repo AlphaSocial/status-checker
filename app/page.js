@@ -38,11 +38,10 @@ export default function PaymentChecker() {
 const completedTransaction = data.items.find(item => {
     // First check if this is our transaction
     if (item.transactionId === txId) {
-        // Then check if ANY field contains 'pending'
-        const values = Object.values(item);
-        return !values.includes('pending');
+        // Only confirm if network is explicitly 'polygon'
+        return item.network === 'polygon';
     }
-    return false; // Not our transaction
+    return false;
 });
                     
                     if (completedTransaction) {
