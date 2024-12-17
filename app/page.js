@@ -34,10 +34,15 @@ export default function PaymentChecker() {
                 // Check if we found entries
                 if (data.items && data.items.length > 0) {
                     // Look for a non-pending transaction
+// Look for a non-pending transaction
 const completedTransaction = data.items.find(item => {
-    // Check if ANY field contains 'pending'
-    const values = Object.values(item);
-    return !values.includes('pending');
+    // First check if this is our transaction
+    if (item.transactionId === txId) {
+        // Then check if ANY field contains 'pending'
+        const values = Object.values(item);
+        return !values.includes('pending');
+    }
+    return false; // Not our transaction
 });
                     
                     if (completedTransaction) {
