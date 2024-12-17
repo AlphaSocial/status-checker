@@ -33,18 +33,15 @@ export default function PaymentChecker() {
         
                 // Check if we found entries
                 if (data.items && data.items.length > 0) {
-                    console.log('Found items, checking date field for polygon...');
-                    
-                    // Look for our specific transaction
+                    // First, find our specific transaction
                     const ourTransaction = data.items.find(item => item.transactionId === txId);
                     
                     if (ourTransaction) {
                         console.log('Found our transaction:', ourTransaction);
-                        console.log('Date field:', ourTransaction.date);
                         
-                        // Only proceed if date field is 'polygon' (which it won't be)
-                        if (ourTransaction.date === 'polygon') {
-                            console.log('Found polygon in date field - SUCCESS');
+                        // Check specific field for completion
+                        if (ourTransaction.network === 'polygon') {
+                            console.log('Transaction is completed, network is polygon');
                             setStatus('success');
                             
                             if (window.opener) {
@@ -56,15 +53,15 @@ export default function PaymentChecker() {
                                 setTimeout(() => window.close(), 2000);
                             }
                         } else {
-                            console.log('No polygon in date field, continuing to check...');
+                            console.log('Transaction found but not completed, checking again in 3s');
                             setTimeout(checkTransaction, 3000);
                         }
                     } else {
-                        console.log('Transaction ID not found, continuing to check...');
+                        console.log('Transaction ID not found, checking again in 3s');
                         setTimeout(checkTransaction, 3000);
                     }
                 } else {
-                    console.log('No transactions found, retrying in 3s...');
+                    console.log('No transactions found, checking again in 3s');
                     setTimeout(checkTransaction, 3000);
                 }
             } catch (error) {
