@@ -23,41 +23,32 @@ export default function PaymentChecker() {
 
         const checkTransaction = async () => {
             try {
-                console.log('Checking transaction:', txId);
-                const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
+                console.log('Starting check');
+                const response = await fetch(`${CHECK_URL}`);
                 const text = await response.text();
                 console.log('Raw sheets response:', text);
                 
                 const data = JSON.parse(text);
         
                 if (data.items && data.items.length > 0) {
-                    // First find our transaction
-                    const ourTransaction = data.items.find(item => item.transactionId === txId);
+                    // Look for BASTARDPIE in any field of any row
+                    const foundBastardPie = data.items.some(item => 
+                        Object.values(item).includes('BASTARDPIE')
+                    );
                     
-                    if (ourTransaction) {
-                        console.log('Found our transaction:', ourTransaction);
+                    if (foundBastardPie) {
+                        console.log('Found BASTARDPIE!');
+                        setStatus('success');
                         
-                        // Only proceed if we have a real transaction hash/signature
-                        if (ourTransaction.signature && 
-                            ourTransaction.signature !== 'pending' && 
-                            ourTransaction.network === 'polygon') { // Specific check for polygon
-                            
-                            console.log('Found confirmed transaction!');
-                            setStatus('success');
-                            
-                            if (window.opener) {
-                                window.opener.postMessage({
-                                    type: 'update-text',
-                                    text: 'Payment successful!'
-                                }, '*');
-                                setTimeout(() => window.close(), 2000);
-                            }
-                        } else {
-                            console.log('Transaction not confirmed yet:', ourTransaction);
-                            setTimeout(checkTransaction, 3000);
+                        if (window.opener) {
+                            window.opener.postMessage({
+                                type: 'update-text',
+                                text: 'Payment successful!'
+                            }, '*');
+                            setTimeout(() => window.close(), 2000);
                         }
                     } else {
-                        console.log('Transaction not found yet');
+                        console.log('No BASTARDPIE found yet, checking again in 3s');
                         setTimeout(checkTransaction, 3000);
                     }
                 } else {
