@@ -3,18 +3,22 @@
 import React, { useEffect, useState } from 'react';
 import { Loader } from 'lucide-react';
 
+// Constants
 const PAYMENT_STATUS = {
     PENDING: 'pending',
     RECEIVED: 'received',
     ERROR: 'error'
 };
 
+const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
+const MAX_ATTEMPTS = 60; // 3 minutes with 3-second intervals
+const CHECK_INTERVAL = 3000; // 3 seconds
+
 export default function PaymentChecker() {
     const [status, setStatus] = useState('checking');
     const [error, setError] = useState(null);
     const [attempts, setAttempts] = useState(0);
-    const MAX_ATTEMPTS = 60; // 3 minutes with 3-second intervals
-    const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
+    const [transactionId, setTransactionId] = useState(null);
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -29,84 +33,107 @@ export default function PaymentChecker() {
             return;
         }
 
+        setTransactionId(txId);
+
         const checkTransaction = async () => {
             try {
+                if (attempts >= MAX_ATTEMPTS) {
+                    console.log('Maximum attempts reached');
+                    setError('Payment verification timeout. Please check your transaction status.');
+                    setStatus('error');
+                    return;
+                }
+
                 console.log(`Checking transaction (Attempt ${attempts + 1}/${MAX_ATTEMPTS}):`, txId);
+                
                 const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
                 const text = await response.text();
                 console.log('Response from sheets:', text);
                 
-                const data = JSON.parse(text);
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseError) {
+                    console.error('Error parsing response:', parseError);
+                    throw new Error('Invalid response format');
+                }
+                
                 console.log('Parsed response:', data);
         
-                // Check if we found entries
-                if (data.items && data.items.length > 0) {
-                    // Find our specific transaction
-                    const ourTransaction = data.items.find(item => item.transactionId === txId);
+                if (!data.items || !Array.isArray(data.items)) {
+                    throw new Error('Invalid data structure');
+                }
+
+                const transaction = data.items.find(item => item.transactionId === txId);
+                
+                if (transaction) {
+                    console.log('Found transaction:', transaction);
                     
-                    if (ourTransaction) {
-                        console.log('Found our transaction:', ourTransaction);
-                        
-                        // Check if payment has been received
-                        if (ourTransaction.paymentStatus === PAYMENT_STATUS.RECEIVED) {
-                            console.log('Payment confirmed as received');
-                            setStatus('success');
-                            
-                            // Notify parent window
-                            if (window.opener) {
-                                window.opener.postMessage({
-                                    type: 'update-text',
-                                    text: 'Payment successful!'
-                                }, '*');
-                                
-                                setTimeout(() => window.close(), 2000);
-                            }
-                        } else {
-                            if (attempts >= MAX_ATTEMPTS) {
-                                console.log('Maximum attempts reached without payment confirmation');
-                                setError('Payment verification timeout. Please check your transaction status.');
-                                setStatus('error');
-                            } else {
-                                console.log('Payment not yet received, checking again in 3s');
-                                setAttempts(prev => prev + 1);
-                                setTimeout(checkTransaction, 3000);
-                            }
-                        }
-                    } else {
-                        if (attempts >= MAX_ATTEMPTS) {
-                            setError('Transaction not found after maximum attempts');
-                            setStatus('error');
-                        } else {
-                            console.log('Transaction ID not found, checking again in 3s');
-                            setAttempts(prev => prev + 1);
-                            setTimeout(checkTransaction, 3000);
-                        }
+                    // Validate payment status
+                    if (!transaction.paymentStatus) {
+                        console.log('Payment status not found, treating as pending');
+                        scheduleNextCheck();
+                        return;
                     }
-                } else {
-                    if (attempts >= MAX_ATTEMPTS) {
-                        setError('No transactions found after maximum attempts');
+                    
+                    if (transaction.paymentStatus === PAYMENT_STATUS.RECEIVED) {
+                        console.log('Payment confirmed as received');
+                        handlePaymentSuccess();
+                    } else if (transaction.paymentStatus === PAYMENT_STATUS.ERROR) {
+                        console.log('Payment error detected');
+                        setError('Payment processing error. Please try again.');
                         setStatus('error');
                     } else {
-                        console.log('No transactions found, checking again in 3s');
-                        setAttempts(prev => prev + 1);
-                        setTimeout(checkTransaction, 3000);
+                        console.log('Payment still pending');
+                        scheduleNextCheck();
                     }
+                } else {
+                    console.log('Transaction not found');
+                    scheduleNextCheck();
                 }
             } catch (error) {
                 console.error('Error checking transaction:', error);
-                if (attempts >= MAX_ATTEMPTS) {
-                    setError('Error verifying payment after maximum attempts');
-                    setStatus('error');
-                } else {
-                    setAttempts(prev => prev + 1);
-                    setTimeout(checkTransaction, 3000);
-                }
+                scheduleNextCheck();
+            }
+        };
+
+        const scheduleNextCheck = () => {
+            setAttempts(prev => prev + 1);
+            setTimeout(checkTransaction, CHECK_INTERVAL);
+        };
+
+        const handlePaymentSuccess = () => {
+            setStatus('success');
+            
+            if (window.opener) {
+                // Notify parent window
+                window.opener.postMessage({
+                    type: 'update-text',
+                    text: 'Payment successful!',
+                    transactionId: txId,
+                    paymentStatus: PAYMENT_STATUS.RECEIVED
+                }, '*');
+                
+                // Close window after delay
+                setTimeout(() => window.close(), 2000);
             }
         };
 
         // Start checking
         checkTransaction();
 
+        // Cleanup function
+        return () => {
+            // Clear any pending timeouts
+            const id = setTimeout(() => {}, 0);
+            while (id--) {
+                clearTimeout(id);
+            }
+        };
     }, [attempts]);
 
     return (
@@ -128,21 +155,48 @@ export default function PaymentChecker() {
                             Please keep this window open while we confirm your payment
                             {attempts > 0 && ` (Attempt ${attempts}/${MAX_ATTEMPTS})`}
                         </p>
+                        {attempts > 10 && (
+                            <p className="text-sm text-amber-600 mt-4">
+                                This is taking longer than usual. Please be patient...
+                            </p>
+                        )}
                     </div>
                 )}
 
                 {status === 'success' && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <p className="text-green-800 text-center">
-                            Payment successful! Window closing...
+                        <p className="text-green-800 text-center font-medium">
+                            Payment successful!
+                        </p>
+                        <p className="text-green-600 text-center text-sm mt-2">
+                            Window closing...
                         </p>
                     </div>
                 )}
 
                 {status === 'error' && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                        <p className="text-red-800 text-center">
+                        <p className="text-red-800 text-center font-medium">
                             {error || 'An error occurred during verification'}
+                        </p>
+                        <p className="text-red-600 text-center text-sm mt-2">
+                            Please try refreshing or contact support if the issue persists.
+                        </p>
+                        <div className="mt-4 text-center">
+                            <button
+                                onClick={() => window.location.reload()}
+                                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                            >
+                                Retry Verification
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {transactionId && (
+                    <div className="mt-4 text-center">
+                        <p className="text-xs text-gray-500">
+                            Transaction ID: {transactionId}
                         </p>
                     </div>
                 )}
