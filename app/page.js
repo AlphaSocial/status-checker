@@ -3,9 +3,17 @@
 import React, { useEffect, useState } from 'react';
 import { Loader } from 'lucide-react';
 
+const PAYMENT_STATUS = {
+    PENDING: 'pending',
+    RECEIVED: 'received',
+    ERROR: 'error'
+};
+
 export default function PaymentChecker() {
     const [status, setStatus] = useState('checking');
     const [error, setError] = useState(null);
+    const [attempts, setAttempts] = useState(0);
+    const MAX_ATTEMPTS = 60; // 3 minutes with 3-second intervals
     const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
 
     useEffect(() => {
@@ -23,7 +31,7 @@ export default function PaymentChecker() {
 
         const checkTransaction = async () => {
             try {
-                console.log('Checking transaction:', txId);
+                console.log(`Checking transaction (Attempt ${attempts + 1}/${MAX_ATTEMPTS}):`, txId);
                 const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
                 const text = await response.text();
                 console.log('Response from sheets:', text);
@@ -33,17 +41,18 @@ export default function PaymentChecker() {
         
                 // Check if we found entries
                 if (data.items && data.items.length > 0) {
-                    // First, find our specific transaction
+                    // Find our specific transaction
                     const ourTransaction = data.items.find(item => item.transactionId === txId);
                     
                     if (ourTransaction) {
                         console.log('Found our transaction:', ourTransaction);
                         
-                        // Check specific field for completion
-                        if (ourTransaction.network === 'polygon') {
-                            console.log('Transaction is completed, network is polygon');
+                        // Check if payment has been received
+                        if (ourTransaction.paymentStatus === PAYMENT_STATUS.RECEIVED) {
+                            console.log('Payment confirmed as received');
                             setStatus('success');
                             
+                            // Notify parent window
                             if (window.opener) {
                                 window.opener.postMessage({
                                     type: 'update-text',
@@ -53,27 +62,52 @@ export default function PaymentChecker() {
                                 setTimeout(() => window.close(), 2000);
                             }
                         } else {
-                            console.log('Transaction found but not completed, checking again in 3s');
-                            setTimeout(checkTransaction, 3000);
+                            if (attempts >= MAX_ATTEMPTS) {
+                                console.log('Maximum attempts reached without payment confirmation');
+                                setError('Payment verification timeout. Please check your transaction status.');
+                                setStatus('error');
+                            } else {
+                                console.log('Payment not yet received, checking again in 3s');
+                                setAttempts(prev => prev + 1);
+                                setTimeout(checkTransaction, 3000);
+                            }
                         }
                     } else {
-                        console.log('Transaction ID not found, checking again in 3s');
-                        setTimeout(checkTransaction, 3000);
+                        if (attempts >= MAX_ATTEMPTS) {
+                            setError('Transaction not found after maximum attempts');
+                            setStatus('error');
+                        } else {
+                            console.log('Transaction ID not found, checking again in 3s');
+                            setAttempts(prev => prev + 1);
+                            setTimeout(checkTransaction, 3000);
+                        }
                     }
                 } else {
-                    console.log('No transactions found, checking again in 3s');
-                    setTimeout(checkTransaction, 3000);
+                    if (attempts >= MAX_ATTEMPTS) {
+                        setError('No transactions found after maximum attempts');
+                        setStatus('error');
+                    } else {
+                        console.log('No transactions found, checking again in 3s');
+                        setAttempts(prev => prev + 1);
+                        setTimeout(checkTransaction, 3000);
+                    }
                 }
             } catch (error) {
                 console.error('Error checking transaction:', error);
-                setTimeout(checkTransaction, 3000);
+                if (attempts >= MAX_ATTEMPTS) {
+                    setError('Error verifying payment after maximum attempts');
+                    setStatus('error');
+                } else {
+                    setAttempts(prev => prev + 1);
+                    setTimeout(checkTransaction, 3000);
+                }
             }
         };
 
         // Start checking
         checkTransaction();
 
-    }, []);
+    }, [attempts]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
@@ -91,7 +125,8 @@ export default function PaymentChecker() {
                             Verifying your payment...
                         </p>
                         <p className="text-sm text-gray-500 mt-2">
-                            Please keep this window open
+                            Please keep this window open while we confirm your payment
+                            {attempts > 0 && ` (Attempt ${attempts}/${MAX_ATTEMPTS})`}
                         </p>
                     </div>
                 )}
