@@ -9,70 +9,70 @@ export default function PaymentChecker() {
     const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
 
     useEffect(() => {
-        let timeoutId;
-        let attemptCount = 0;
         const urlParams = new URLSearchParams(window.location.search);
         const txId = urlParams.get('transactionId');
         
+        console.log('Status Checker - Transaction ID:', txId);
+        
         if (!txId) {
+            console.error('No transaction ID provided in URL');
             setError('No transaction ID provided');
             setStatus('error');
             return;
         }
 
-        function checkTransaction() {
-            fetch(`${CHECK_URL}?transactionId=${txId}`)
-                .then(response => response.text())
-                .then(text => JSON.parse(text))
-                .then(data => {
-                    if (data.items && data.items.length > 0) {
-                        const ourTransaction = data.items.find(item => item.transactionId === txId);
+        const checkTransaction = async () => {
+            try {
+                console.log('Checking transaction:', txId);
+                const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
+                const text = await response.text();
+                console.log('Response from sheets:', text);
+                
+                const data = JSON.parse(text);
+                console.log('Parsed response:', data);
+        
+                // If no data yet, keep checking
+                if (!data.items || data.items.length === 0) {
+                    console.log('No transactions found, checking again in 3s');
+                    setTimeout(checkTransaction, 3000);
+                    return;
+                }
+
+                // Look for our transaction
+                const ourTransaction = data.items.find(item => item.transactionId === txId);
+                
+                if (!ourTransaction) {
+                    console.log('Transaction ID not found, checking again in 3s');
+                    setTimeout(checkTransaction, 3000);
+                    return;
+                }
+
+                // Check if transaction is complete
+                if (ourTransaction.network === 'polygon') {
+                    console.log('Transaction is completed');
+                    setStatus('success');
+                    
+                    if (window.opener) {
+                        window.opener.postMessage({
+                            type: 'update-text',
+                            text: 'Payment successful!'
+                        }, '*');
                         
-                        if (ourTransaction && ourTransaction.paymentStatus === 'received') {
-                            setStatus('success');
-                            
-                            if (window.opener) {
-                                window.opener.postMessage({
-                                    type: 'update-text',
-                                    text: 'Payment successful!'
-                                }, '*');
-                                
-                                setTimeout(() => window.close(), 2000);
-                            }
-                        } else if (attemptCount < 60) {
-                            attemptCount++;
-                            timeoutId = setTimeout(checkTransaction, 3000);
-                        } else {
-                            setError('Payment verification timeout');
-                            setStatus('error');
-                        }
-                    } else if (attemptCount < 60) {
-                        attemptCount++;
-                        timeoutId = setTimeout(checkTransaction, 3000);
-                    } else {
-                        setError('Payment verification timeout');
-                        setStatus('error');
+                        setTimeout(() => window.close(), 2000);
                     }
-                })
-                .catch(error => {
-                    console.error('Error checking transaction:', error);
-                    if (attemptCount < 60) {
-                        attemptCount++;
-                        timeoutId = setTimeout(checkTransaction, 3000);
-                    } else {
-                        setError('Payment verification error');
-                        setStatus('error');
-                    }
-                });
-        }
-
-        checkTransaction();
-
-        return () => {
-            if (timeoutId) {
-                clearTimeout(timeoutId);
+                } else {
+                    console.log('Transaction found but not completed, checking again in 3s');
+                    setTimeout(checkTransaction, 3000);
+                }
+            } catch (error) {
+                console.error('Error checking transaction:', error);
+                setTimeout(checkTransaction, 3000);
             }
         };
+
+        // Start checking
+        checkTransaction();
+
     }, []);
 
     return (
