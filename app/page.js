@@ -26,41 +26,46 @@ export default function PaymentChecker() {
                 console.log('Checking transaction:', txId);
                 const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
                 const text = await response.text();
-                console.log('Raw sheets response:', text);
+                console.log('Response from sheets:', text);
                 
                 const data = JSON.parse(text);
+                console.log('Parsed response:', data);
         
+                // Check if we found entries
                 if (data.items && data.items.length > 0) {
-                    // First find our specific transaction
+                    // First, find our specific transaction
                     const ourTransaction = data.items.find(item => item.transactionId === txId);
                     
                     if (ourTransaction) {
-                        // Check if ANY field contains 'pending'
-                        const hasPending = Object.values(ourTransaction).includes('pending');
+                        console.log('Found our transaction:', ourTransaction);
                         
-                        if (!hasPending) {
-                            console.log('Found completed transaction:', ourTransaction);
+                        // Check specific field for completion
+                        if (ourTransaction.network === 'polygon') {
+                            console.log('Transaction is completed, network is polygon');
                             setStatus('success');
                             
-                            // Only send success message if we're in mobile
-                            if (window.opener && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                            if (window.opener) {
                                 window.opener.postMessage({
-                                    type: 'payment-success',
-                                    transactionId: txId
+                                    type: 'update-text',
+                                    text: 'Payment successful!'
                                 }, '*');
+                                
                                 setTimeout(() => window.close(), 2000);
                             }
                         } else {
-                            console.log('Transaction still pending, checking again in 3s');
+                            console.log('Transaction found but not completed, checking again in 3s');
                             setTimeout(checkTransaction, 3000);
                         }
                     } else {
-                        console.log('Transaction not found, checking again in 3s');
+                        console.log('Transaction ID not found, checking again in 3s');
                         setTimeout(checkTransaction, 3000);
                     }
+                } else {
+                    console.log('No transactions found, checking again in 3s');
+                    setTimeout(checkTransaction, 3000);
                 }
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error checking transaction:', error);
                 setTimeout(checkTransaction, 3000);
             }
         };
