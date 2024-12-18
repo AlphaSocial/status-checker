@@ -6,10 +6,11 @@ import { Loader } from 'lucide-react';
 export default function PaymentChecker() {
     const [status, setStatus] = useState('checking');
     const [error, setError] = useState(null);
-    const [attempts, setAttempts] = useState(0);
     const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
 
     useEffect(() => {
+        let timeoutId;
+        let attemptCount = 0;
         const urlParams = new URLSearchParams(window.location.search);
         const txId = urlParams.get('transactionId');
         
@@ -19,56 +20,60 @@ export default function PaymentChecker() {
             return;
         }
 
-        const checkTransaction = async () => {
-            try {
-                if (attempts >= 60) {
-                    setError('Payment verification timeout. Please check your transaction status.');
-                    setStatus('error');
-                    return;
-                }
-
-                const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
-                const text = await response.text();
-                const data = JSON.parse(text);
-
-                if (data.items && data.items.length > 0) {
-                    const ourTransaction = data.items.find(item => item.transactionId === txId);
-                    
-                    if (ourTransaction && ourTransaction.paymentStatus === 'received') {
-                        setStatus('success');
+        function checkTransaction() {
+            fetch(`${CHECK_URL}?transactionId=${txId}`)
+                .then(response => response.text())
+                .then(text => JSON.parse(text))
+                .then(data => {
+                    if (data.items && data.items.length > 0) {
+                        const ourTransaction = data.items.find(item => item.transactionId === txId);
                         
-                        if (window.opener) {
-                            window.opener.postMessage({
-                                type: 'update-text',
-                                text: 'Payment successful!'
-                            }, '*');
+                        if (ourTransaction && ourTransaction.paymentStatus === 'received') {
+                            setStatus('success');
                             
-                            setTimeout(() => window.close(), 2000);
+                            if (window.opener) {
+                                window.opener.postMessage({
+                                    type: 'update-text',
+                                    text: 'Payment successful!'
+                                }, '*');
+                                
+                                setTimeout(() => window.close(), 2000);
+                            }
+                        } else if (attemptCount < 60) {
+                            attemptCount++;
+                            timeoutId = setTimeout(checkTransaction, 3000);
+                        } else {
+                            setError('Payment verification timeout');
+                            setStatus('error');
                         }
+                    } else if (attemptCount < 60) {
+                        attemptCount++;
+                        timeoutId = setTimeout(checkTransaction, 3000);
                     } else {
-                        setAttempts(prev => prev + 1);
-                        setTimeout(checkTransaction, 3000);
+                        setError('Payment verification timeout');
+                        setStatus('error');
                     }
-                } else {
-                    setAttempts(prev => prev + 1);
-                    setTimeout(checkTransaction, 3000);
-                }
-            } catch (error) {
-                console.error('Error checking transaction:', error);
-                setAttempts(prev => prev + 1);
-                setTimeout(checkTransaction, 3000);
-            }
-        };
+                })
+                .catch(error => {
+                    console.error('Error checking transaction:', error);
+                    if (attemptCount < 60) {
+                        attemptCount++;
+                        timeoutId = setTimeout(checkTransaction, 3000);
+                    } else {
+                        setError('Payment verification error');
+                        setStatus('error');
+                    }
+                });
+        }
 
         checkTransaction();
 
         return () => {
-            const id = setTimeout(() => {}, 0);
-            while (id--) {
-                clearTimeout(id);
+            if (timeoutId) {
+                clearTimeout(timeoutId);
             }
         };
-    }, [attempts]);
+    }, []);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
