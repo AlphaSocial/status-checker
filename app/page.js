@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { Loader } from 'lucide-react';
+import { CONSTANTS } from '../constants';  // Assuming constants.js is in parent directory
 
 export default function PaymentChecker() {
     const [status, setStatus] = useState('checking');
     const [error, setError] = useState(null);
-    const CHECK_URL = 'https://script.google.com/macros/s/AKfycbzzqLT0lGvm3GMm4GDN-2uuW0-xgXmxsMi3ZbziMN4sV7eUmmJbDrSiGhPHXYQPemZH/exec';
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
@@ -24,7 +24,7 @@ export default function PaymentChecker() {
         const checkTransaction = async () => {
             try {
                 console.log('Checking transaction:', txId);
-                const response = await fetch(`${CHECK_URL}?transactionId=${txId}`);
+                const response = await fetch(`${CONSTANTS.STATUS_CHECKER.URL}?transactionId=${txId}`);
                 const text = await response.text();
                 console.log('Response from sheets:', text);
                 
@@ -33,8 +33,8 @@ export default function PaymentChecker() {
         
                 // If no data yet, keep checking
                 if (!data.items || data.items.length === 0) {
-                    console.log('No transactions found, checking again in 3s');
-                    setTimeout(checkTransaction, 3000);
+                    console.log('No transactions found, checking again');
+                    setTimeout(checkTransaction, CONSTANTS.STATUS_CHECKER.CHECK_INTERVAL);
                     return;
                 }
 
@@ -42,13 +42,13 @@ export default function PaymentChecker() {
                 const ourTransaction = data.items.find(item => item.transactionId === txId);
                 
                 if (!ourTransaction) {
-                    console.log('Transaction ID not found, checking again in 3s');
-                    setTimeout(checkTransaction, 3000);
+                    console.log('Transaction ID not found, checking again');
+                    setTimeout(checkTransaction, CONSTANTS.STATUS_CHECKER.CHECK_INTERVAL);
                     return;
                 }
 
                 // Check if transaction is complete
-                if (ourTransaction.network === 'polygon') {
+                if (ourTransaction.status === 'completed') {
                     console.log('Transaction is completed');
                     setStatus('success');
                     
@@ -61,18 +61,17 @@ export default function PaymentChecker() {
                         setTimeout(() => window.close(), 2000);
                     }
                 } else {
-                    console.log('Transaction found but not completed, checking again in 3s');
-                    setTimeout(checkTransaction, 3000);
+                    console.log('Transaction found but not completed, checking again');
+                    setTimeout(checkTransaction, CONSTANTS.STATUS_CHECKER.CHECK_INTERVAL);
                 }
             } catch (error) {
                 console.error('Error checking transaction:', error);
-                setTimeout(checkTransaction, 3000);
+                setTimeout(checkTransaction, CONSTANTS.STATUS_CHECKER.CHECK_INTERVAL);
             }
         };
 
         // Start checking
         checkTransaction();
-
     }, []);
 
     return (
