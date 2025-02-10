@@ -20,17 +20,7 @@ export default function PaymentChecker() {
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const txId = urlParams.get('transactionId');
-        const pathName = window.location.pathname;
         
-        // Set spins based on path
-        let spinAmount = 3; // default
-        if (pathName.includes('/7spins')) {
-            spinAmount = 7;
-        } else if (pathName.includes('/3spins')) {
-            spinAmount = 3;
-        }
-        
-        // Validate transaction ID format
         if (!isValidTransactionId(txId)) {
             console.error('Invalid transaction ID format');
             setError('Invalid transaction ID');
@@ -40,7 +30,6 @@ export default function PaymentChecker() {
 
         const checkTransaction = async () => {
             try {
-                // Check retry limit
                 if (retryCount >= MAX_RETRIES) {
                     setError('Verification timeout - please try again');
                     setStatus('error');
@@ -66,15 +55,11 @@ export default function PaymentChecker() {
                 if (data.found === true) {
                     setStatus('success');
                     
+                    // Simply send update-text message and let the Button HTML handle the rest
                     if (window.opener) {
-                        const paymentAmount = spinAmount === 3 ? '2.99' : '5.99';
-                        
-                        // Send message in the exact format the app.js uses
-                        window.opener.postMessage({ 
+                        window.opener.postMessage({
                             type: 'update-text',
-                            text: 'Payment successful!',
-                            amount: paymentAmount,
-                            spins: spinAmount
+                            text: 'Payment successful!'
                         }, '*');
                         
                         setTimeout(() => window.close(), 2000);
@@ -87,7 +72,6 @@ export default function PaymentChecker() {
                 console.error('Transaction check error:', error);
                 setRetryCount(prev => prev + 1);
                 
-                // Only retry if under max attempts
                 if (retryCount < MAX_RETRIES) {
                     setTimeout(checkTransaction, 3000);
                 } else {
@@ -98,7 +82,7 @@ export default function PaymentChecker() {
         };
 
         checkTransaction();
-    }, [retryCount]); // Added retryCount as dependency
+    }, [retryCount]);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
