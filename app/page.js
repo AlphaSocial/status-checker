@@ -18,19 +18,17 @@ export default function PaymentChecker() {
     const CHECK_URL = process.env.NEXT_PUBLIC_DATA_SCRIPT_URL;
 
     useEffect(() => {
-        // Create and append status elements like in the original code
-        const statusDiv = document.createElement('div');
-        statusDiv.id = 'payment-status';
-        statusDiv.style.display = 'none';
-        
-        const statusText = document.createElement('div');
-        statusText.id = 'status-text';
-        statusDiv.appendChild(statusText);
-        
-        document.body.appendChild(statusDiv);
-
         const urlParams = new URLSearchParams(window.location.search);
         const txId = urlParams.get('transactionId');
+        const pathName = window.location.pathname;
+        
+        // Set spins based on path
+        let spinAmount = 3; // default
+        if (pathName.includes('/7spins')) {
+            spinAmount = 7;
+        } else if (pathName.includes('/3spins')) {
+            spinAmount = 3;
+        }
         
         // Validate transaction ID format
         if (!isValidTransactionId(txId)) {
@@ -68,21 +66,15 @@ export default function PaymentChecker() {
                 if (data.found === true) {
                     setStatus('success');
                     
-                    // Update status display exactly like the button code
-                    statusDiv.style.display = 'block';
-                    statusText.textContent = 'Payment successful!';
-                    
-                    // Send messages to parent window
-                    if (window.parent) {
-                        window.parent.postMessage({
-                            type: 'payment-success',
-                            action: 'show-spin',
-                            spins: 3
-                        }, '*');
-
-                        window.parent.postMessage({
+                    if (window.opener) {
+                        const paymentAmount = spinAmount === 3 ? '2.99' : '5.99';
+                        
+                        // Send message in the exact format the app.js uses
+                        window.opener.postMessage({ 
                             type: 'update-text',
-                            text: 'Payment successful!'
+                            text: 'Payment successful!',
+                            amount: paymentAmount,
+                            spins: spinAmount
                         }, '*');
                         
                         setTimeout(() => window.close(), 2000);
@@ -106,14 +98,7 @@ export default function PaymentChecker() {
         };
 
         checkTransaction();
-
-        // Cleanup
-        return () => {
-            if (statusDiv && statusDiv.parentNode) {
-                statusDiv.parentNode.removeChild(statusDiv);
-            }
-        };
-    }, [retryCount]);
+    }, [retryCount]); // Added retryCount as dependency
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
