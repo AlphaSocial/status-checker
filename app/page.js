@@ -52,25 +52,27 @@ export default function PaymentChecker() {
                 if (data.found === true) {
                     setStatus('success');
                     
-                    // Send success message to parent window
-                    if (window.opener) {
+                    // Find all parent windows in the chain
+                    let currentWindow = window;
+                    while (currentWindow.opener) {
                         // First message to update status text
-                        window.opener.postMessage({
+                        currentWindow.opener.postMessage({
                             type: 'update-text',
                             text: 'Payment successful!'
                         }, '*');
-                
+
                         // Second message to trigger spin addition
-                        window.opener.postMessage({
+                        currentWindow.opener.postMessage({
                             type: 'payment-success',
                             action: 'show-spin',
                             spins: 3
                         }, '*');
-                
-                        setTimeout(() => window.close(), 2000);
+                        
+                        currentWindow = currentWindow.opener;
                     }
-                }
-                 else {
+
+                    setTimeout(() => window.close(), 2000);
+                } else {
                     setRetryCount(count => count + 1);
                     setTimeout(checkTransaction, 3000);
                 }
