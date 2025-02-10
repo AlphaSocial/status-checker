@@ -22,7 +22,7 @@ export default function PaymentChecker() {
     const [status, setStatus] = useState('checking');
     const [error, setError] = useState(null);
     const [retryCount, setRetryCount] = useState(0);
-    const MAX_RETRIES = 40; // 2 minutes total (3s * 40)
+    const MAX_RETRIES = 100; // Increased from 40 to 100
     const CHECK_URL = process.env.NEXT_PUBLIC_DATA_SCRIPT_URL;
 
     useEffect(() => {
@@ -39,7 +39,6 @@ export default function PaymentChecker() {
 
         const checkTransaction = async () => {
             try {
-                // Check retry limit
                 if (retryCount >= MAX_RETRIES) {
                     setError('Verification timeout - please try again');
                     setStatus('error');
@@ -64,35 +63,26 @@ export default function PaymentChecker() {
 
                 if (data.found === true) {
                     setStatus('success');
-                    
                     if (window.opener) {
                         window.opener.postMessage({
                             type: 'update-text',
                             text: 'Payment successful!'
-                        }, '*');  // Using '*' temporarily for testing
-                        
+                        }, '*');
                         setTimeout(() => window.close(), 2000);
                     }
                 } else {
-                    setRetryCount(prev => prev + 1);
+                    setRetryCount(count => count + 1);
                     setTimeout(checkTransaction, 3000);
                 }
             } catch (error) {
                 console.error('Transaction check error:', error);
-                setRetryCount(prev => prev + 1);
-                
-                // Only retry if under max attempts
-                if (retryCount < MAX_RETRIES) {
-                    setTimeout(checkTransaction, 3000);
-                } else {
-                    setError('Failed to verify payment');
-                    setStatus('error');
-                }
+                setRetryCount(count => count + 1);
+                setTimeout(checkTransaction, 3000);
             }
         };
 
         checkTransaction();
-    }, [retryCount]); // Added retryCount as dependency
+    }, []); // Removed retryCount from dependencies
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
