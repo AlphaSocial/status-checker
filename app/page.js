@@ -3,40 +3,24 @@
 import React, { useEffect, useState } from 'react';
 import { Loader } from 'lucide-react';
 
-// Debug check - add this temporarily at the top of your component
-console.log('URL being used:', process.env.NEXT_PUBLIC_DATA_SCRIPT_URL);
-
-
-
-// Validation helper
 const isValidTransactionId = (txId) => {
     return Boolean(txId) && 
            /^[a-zA-Z0-9-_]+$/.test(txId) && 
            txId.length <= 50;
 };
 
-// Allowed origins for secure messaging
-const ALLOWED_ORIGINS = [
-    'https://editor.wix.com',
-    'https://alphasocial.io',
-    'https://status-checker-ten.vercel.app',
-    'http://localhost:3000'
-].filter(Boolean);
-
 export default function PaymentChecker() {
     const [status, setStatus] = useState('checking');
     const [error, setError] = useState(null);
     const [retryCount, setRetryCount] = useState(0);
-    const MAX_RETRIES = 100; // Increased from 40 to 100
+    const MAX_RETRIES = 100;
     const CHECK_URL = process.env.NEXT_PUBLIC_DATA_SCRIPT_URL;
 
     useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
         const txId = urlParams.get('transactionId');
         
-        // Validate transaction ID format
         if (!isValidTransactionId(txId)) {
-            console.error('Invalid transaction ID format');
             setError('Invalid transaction ID');
             setStatus('error');
             return;
@@ -57,7 +41,6 @@ export default function PaymentChecker() {
                 }
 
                 const text = await response.text();
-                
                 let data;
                 try {
                     data = JSON.parse(text);
@@ -68,11 +51,22 @@ export default function PaymentChecker() {
 
                 if (data.found === true) {
                     setStatus('success');
+                    
+                    // Send success message to parent window
                     if (window.opener) {
+                        // First message to update status text
                         window.opener.postMessage({
                             type: 'update-text',
                             text: 'Payment successful!'
                         }, '*');
+
+                        // Second message to trigger spin addition
+                        window.opener.postMessage({
+                            type: 'payment-success',
+                            action: 'show-spin',
+                            spins: 3
+                        }, '*');
+
                         setTimeout(() => window.close(), 2000);
                     }
                 } else {
@@ -87,7 +81,7 @@ export default function PaymentChecker() {
         };
 
         checkTransaction();
-    }, []); // Removed retryCount from dependencies
+    }, []);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
