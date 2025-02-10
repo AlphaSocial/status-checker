@@ -7,8 +7,8 @@ const inter = Inter({
 });
 
 export const metadata = {
-  title: "Payment Checker",
-  description: "Payment verification system",
+  title: "Payment Status Checker",
+  description: "Check the status of your payment",
 };
 
 export default function RootLayout({ children }) {
