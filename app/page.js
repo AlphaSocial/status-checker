@@ -3,6 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import { Loader } from 'lucide-react';
 
+// Debug check - add this temporarily at the top of your component
+console.log('URL being used:', process.env.NEXT_PUBLIC_DATA_SCRIPT_URL);
+
+
+
 // Validation helper
 const isValidTransactionId = (txId) => {
     return Boolean(txId) && 
