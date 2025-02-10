@@ -52,24 +52,26 @@ export default function PaymentChecker() {
                 if (data.found === true) {
                     setStatus('success');
                     
-                    // Find all parent windows in the chain
-                    let currentWindow = window;
-                    while (currentWindow.opener) {
-                        // First message to update status text
-                        currentWindow.opener.postMessage({
-                            type: 'update-text',
-                            text: 'Payment successful!'
-                        }, '*');
+                    const TRUSTED_DOMAIN = 'https://www.alphasocial.io';
 
-                        // Second message to trigger spin addition
-                        currentWindow.opener.postMessage({
-                            type: 'payment-success',
-                            action: 'show-spin',
-                            spins: 3
-                        }, '*');
-                        
-                        currentWindow = currentWindow.opener;
-                    }
+// Find all parent windows in the chain
+let currentWindow = window;
+while (currentWindow.opener) {
+    // First message to update status text
+    currentWindow.opener.postMessage({
+        type: 'update-text',
+        text: 'Payment successful!'
+    }, TRUSTED_DOMAIN);
+
+    // Second message to trigger spin addition
+    currentWindow.opener.postMessage({
+        type: 'payment-success',
+        action: 'show-spin',
+        spins: 3
+    }, TRUSTED_DOMAIN);
+    
+    currentWindow = currentWindow.opener;
+}
 
                     setTimeout(() => window.close(), 2000);
                 } else {
