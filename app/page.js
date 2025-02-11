@@ -55,20 +55,21 @@ export default function PaymentChecker() {
                     const TRUSTED_DOMAIN = 'https://www.alphasocial.io';
 
 // Find all parent windows in the chain
+// Find all parent windows in the chain
 let currentWindow = window;
 while (currentWindow.opener) {
     // First message to update status text
     currentWindow.opener.postMessage({
         type: 'update-text',
         text: 'Payment successful!'
-    }, TRUSTED_DOMAIN);
+    }, '*');
 
     // Second message to trigger spin addition
     currentWindow.opener.postMessage({
         type: 'payment-success',
         action: 'show-spin',
         spins: 3
-    }, TRUSTED_DOMAIN);
+    }, '*');
     
     currentWindow = currentWindow.opener;
 }
